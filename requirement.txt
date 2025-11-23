@@ -1,0 +1,30 @@
+# Deep Learning (Güncel versiyonlar)
+torch>=2.5.0
+torchvision>=0.20.0
+torchaudio>=2.5.0
+
+# Transformers (LLM için)
+transformers>=4.40.0
+accelerate>=0.30.0
+sentencepiece>=0.2.0
+
+# Image Processing
+Pillow>=10.0.0
+opencv-python>=4.9.0
+
+# Data Processing
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# Visualization
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Experiment Tracking
+wandb>=0.16.0
+tensorboard>=2.15.0
+
+# Utilities
+tqdm>=4.66.0
+pyyaml>=6.0
