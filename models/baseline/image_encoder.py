@@ -123,10 +123,10 @@ class ResNetWithAttention(nn.Module):
 
         # Freeze early layers (optional, saves memory)
         # Uncomment to freeze layer1 and layer2
-        # for param in self.layer1.parameters():
-        #     param.requires_grad = False
-        # for param in self.layer2.parameters():
-        #     param.requires_grad = False
+        for param in self.layer1.parameters():
+            param.requires_grad = False
+        for param in self.layer2.parameters():
+            param.requires_grad = False
 
         # Attention modules
         self.channel_attention = ChannelAttention(2048, reduction=16)
