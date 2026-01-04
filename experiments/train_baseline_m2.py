@@ -77,7 +77,7 @@ def main():
         'save_every': 5,
 
         # Paths
-        'data_root': '../data/dummy_pisc',
+        'data_root': '../data/processed',
         'checkpoint_dir': '../checkpoints/baseline_m2',
         'log_dir': '../logs/baseline_m2'
     }

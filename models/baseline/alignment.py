@@ -76,7 +76,7 @@ class MultimodalAlignment(nn.Module):
         # [batch, batch] -> [batch, batch]
         image_to_text_weights = F.softmax(similarity_matrix, dim=1)
 
-        # Softmax along image dimension (each text attends to all images)
+        # Softmax along image dimension (each text attends to all image)
         # [batch, batch] -> [batch, batch]
         text_to_image_weights = F.softmax(similarity_matrix.t(), dim=1)
 

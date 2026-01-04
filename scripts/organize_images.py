@@ -12,7 +12,7 @@ import shutil
 from tqdm import tqdm
 
 
-def organize_images(raw_images_dir='data/raw/images',
+def organize_images(raw_images_dir='data/raw/image',
                     processed_dir='data/processed'):
     """
     Görüntüleri annotations'a göre organize et
@@ -25,9 +25,9 @@ def organize_images(raw_images_dir='data/raw/images',
     if not os.path.exists(raw_images_dir):
         print(f"\n❌ Error: Image directory not found: {raw_images_dir}")
         print("\n📥 Please:")
-        print("   1. Download images from Zenodo")
-        print("   2. Extract with: cat images-* | tar zx")
-        print("   3. Place in data/raw/images/")
+        print("   1. Download image from Zenodo")
+        print("   2. Extract with: cat image-* | tar zx")
+        print("   3. Place in data/raw/image/")
         return False
 
     splits = ['train', 'val', 'test']
@@ -56,7 +56,7 @@ def organize_images(raw_images_dir='data/raw/images',
         missing = 0
 
         # Her görüntüyü kopyala
-        for image_name in tqdm(annotations.keys(), desc=f"Copying {split} images"):
+        for image_name in tqdm(annotations.keys(), desc=f"Copying {split} image"):
             source_path = os.path.join(raw_images_dir, image_name)
             target_path = os.path.join(target_dir, image_name)
 
@@ -86,9 +86,9 @@ def organize_images(raw_images_dir='data/raw/images',
                 print(f"   ❌ Error copying {image_name}: {e}")
                 missing += 1
 
-        print(f"   ✓ Copied: {copied} images")
+        print(f"   ✓ Copied: {copied} image")
         if missing > 0:
-            print(f"   ⚠️  Missing: {missing} images")
+            print(f"   ⚠️  Missing: {missing} image")
 
         total_copied += copied
         total_missing += missing
@@ -97,11 +97,11 @@ def organize_images(raw_images_dir='data/raw/images',
     print("\n" + "=" * 80)
     print("📊 Summary")
     print("=" * 80)
-    print(f"Total images copied: {total_copied}")
-    print(f"Total images missing: {total_missing}")
+    print(f"Total image copied: {total_copied}")
+    print(f"Total image missing: {total_missing}")
 
     if total_missing > 0:
-        print("\n⚠️  Some images are missing!")
+        print("\n⚠️  Some image are missing!")
         print("   This might be normal if the dataset has been updated.")
 
     if total_copied > 0:
@@ -113,7 +113,7 @@ def organize_images(raw_images_dir='data/raw/images',
     return True
 
 
-def check_image_formats(raw_images_dir='data/raw/images'):
+def check_image_formats(raw_images_dir='data/raw/image'):
     """
     Görüntü formatlarını kontrol et
     """
@@ -145,9 +145,9 @@ def main():
     """Ana fonksiyon"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='Organize PISC images')
-    parser.add_argument('--raw-dir', default='data/raw/images',
-                        help='Raw images directory')
+    parser = argparse.ArgumentParser(description='Organize PISC image')
+    parser.add_argument('--raw-dir', default='data/raw/image',
+                        help='Raw image directory')
     parser.add_argument('--processed-dir', default='data/processed',
                         help='Processed data directory')
     parser.add_argument('--check', action='store_true',

@@ -1,6 +1,7 @@
 """
 Trainer Module for Social Relationship Recognition
 Handles training loop, validation, checkpointing, and logging
+FIXED: calculate_map array broadcasting issue
 """
 
 import os
@@ -233,7 +234,7 @@ class Trainer:
 
     def calculate_map(self, probs, labels):
         """
-        Calculate mean Average Precision (mAP)
+        Calculate mean Average Precision (mAP) - FIXED VERSION
 
         Args:
             probs: [N, num_classes] - predicted probabilities
@@ -263,11 +264,24 @@ class Trainer:
             precision = tp / (tp + fp + 1e-10)
 
             # Calculate recall at each position
-            recall = tp / (binary_labels.sum() + 1e-10)
+            total_positives = binary_labels.sum()
+            recall = tp / (total_positives + 1e-10)
 
-            # Calculate AP using trapezoidal rule
-            recall_diff = np.diff(np.concatenate([[0], recall]))
-            ap = np.sum(precision[:-1] * recall_diff)
+            # === FIXED: Calculate AP using proper interpolation ===
+            # Add boundary points
+            recall_extended = np.concatenate([[0], recall, [1]])
+            precision_extended = np.concatenate([[0], precision, [0]])
+
+            # Ensure precision is monotonically decreasing
+            for i in range(len(precision_extended) - 2, -1, -1):
+                precision_extended[i] = max(precision_extended[i], precision_extended[i + 1])
+
+            # Calculate area under curve
+            indices = np.where(recall_extended[1:] != recall_extended[:-1])[0] + 1
+            ap = np.sum(
+                (recall_extended[indices] - recall_extended[indices - 1]) *
+                precision_extended[indices]
+            )
 
             aps.append(ap)
 

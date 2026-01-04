@@ -15,9 +15,10 @@ ENV/
 .idea_modules/
 
 # Data
-#data/raw/
-#data/processed/
-#data/captions/
+data/dataset/
+data/raw/
+data/processed/
+data/captions/
 
 # Checkpoints & Results
 #checkpoints/

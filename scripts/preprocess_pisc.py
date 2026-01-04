@@ -4,7 +4,7 @@ Converts raw PISC dataset to the format expected by PISCDataset loader
 
 Steps:
 1. Download dataset from Zenodo: https://zenodo.org/records/1059155
-2. Extract images and place JSON files in data/raw/
+2. Extract image and place JSON files in data/raw/
 3. Run this script to create processed annotations
 
 Usage:
@@ -107,9 +107,9 @@ class PISCPreprocessor:
         val_ids = self.load_split_file(val_path)
         test_ids = self.load_split_file(test_path)
 
-        print(f"   Train: {len(train_ids)} images")
-        print(f"   Val: {len(val_ids)} images")
-        print(f"   Test: {len(test_ids)} images")
+        print(f"   Train: {len(train_ids)} image")
+        print(f"   Val: {len(val_ids)} image")
+        print(f"   Test: {len(test_ids)} image")
 
         # 4. Her split için annotations oluştur
         splits = {
@@ -247,14 +247,14 @@ class PISCPreprocessor:
                     'pairs': pairs
                 }
 
-        print(f"\n   📊 Stats: Found {found_count} images, Not found {not_found_count} images")
+        print(f"\n   📊 Stats: Found {found_count} image, Not found {not_found_count} image")
 
         # Annotations'ı kaydet
         output_path = os.path.join(split_dir, 'annotations.json')
         with open(output_path, 'w') as f:
             json.dump(annotations, f, indent=2)
 
-        print(f"   ✓ Created {len(annotations)} images with {pair_count} pairs")
+        print(f"   ✓ Created {len(annotations)} image with {pair_count} pairs")
         print(f"   ✓ Saved to: {output_path}")
 
     def check_raw_files(self):
@@ -296,7 +296,7 @@ class PISCPreprocessor:
             print("   - domain.json")
             print("   - relationship.json")
             print("   - relationship_split/ folder (with train.txt, val.txt, test.txt)")
-            print("   - images/ folder (extracted from images-* archives)")
+            print("   - image/ folder (extracted from image-* archives)")
             print(f"\n📂 Current directory: {os.path.abspath(self.raw_dir)}")
             print(f"📂 Files in raw dir:")
             try:

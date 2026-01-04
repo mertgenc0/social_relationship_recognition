@@ -95,7 +95,7 @@ class BaselineModel(nn.Module):
         Forward pass through the complete model
 
         Args:
-            images: [batch_size, 3, 224, 224] - input images
+            images: [batch_size, 3, 224, 224] - input image
             captions: List[str] - text captions (batch_size items)
             return_features: bool - whether to return intermediate features
 
@@ -112,7 +112,7 @@ class BaselineModel(nn.Module):
         # 1. Encode text
         text_features = self.text_encoder(captions)  # [batch, 256]
 
-        # 2. Encode images
+        # 2. Encode image
         image_features = self.image_encoder(images)  # [batch, 256]
 
         # 3. Multimodal alignment
@@ -241,7 +241,7 @@ if __name__ == "__main__":
     print("\n📊 Creating test batch...")
     batch_size = 4
 
-    # Sample images
+    # Sample image
     test_images = torch.randn(batch_size, 3, 224, 224)
 
     # Sample captions

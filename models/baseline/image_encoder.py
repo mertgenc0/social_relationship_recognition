@@ -144,7 +144,7 @@ class ResNetWithAttention(nn.Module):
     def forward(self, x):
         """
         Args:
-            x: [batch_size, 3, 224, 224] - input images
+            x: [batch_size, 3, 224, 224] - input image
 
         Returns:
             image_features: [batch_size, hidden_dim]
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     model = ResNetWithAttention(hidden_dim=256, pretrained=True)
     model.eval()
 
-    # Test with sample images
+    # Test with sample image
     print(f"\n📸 Creating test batch...")
     batch_size = 4
     test_images = torch.randn(batch_size, 3, 224, 224)
@@ -205,7 +205,7 @@ if __name__ == "__main__":
         features = model(test_images)
 
     print(f"\n✅ Forward pass successful!")
-    print(f"   Input: {batch_size} images [3, 224, 224]")
+    print(f"   Input: {batch_size} image [3, 224, 224]")
     print(f"   Output shape: {features.shape}")  # Should be [4, 256]
     print(f"   Output dtype: {features.dtype}")
     print(f"   Output range: [{features.min():.3f}, {features.max():.3f}]")

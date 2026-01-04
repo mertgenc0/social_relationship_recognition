@@ -118,7 +118,7 @@ social_relationship_recognition/
 │
 ├── data/                          # Veri setleri ve veri işleme
 │   ├── raw/                       # Ham PISC veri seti (indirdiğinizde buraya)
-│   │   ├── images/               # Tüm görüntüler
+│   │   ├── image/               # Tüm görüntüler
 │   │   └── annotations/          # İlişki etiketleri
 │   ├── processed/                # İşlenmiş veriler
 │   │   ├── train/
