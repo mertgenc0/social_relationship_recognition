@@ -12,7 +12,7 @@ def main():
         'num_classes': 6,
         'hidden_dim': 256,
         'batch_size': 4,
-        'lr': 1e-4,
+        'lr': 5e-5,    #1e-4
         'num_epochs': 20,
         'save_every': 5,
         'device': 'mps' if torch.backends.mps.is_available() else 'cpu',

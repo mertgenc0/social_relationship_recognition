@@ -1,11 +1,11 @@
 import os
 import json
+import random
 import torch
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image
 import torchvision.transforms as transforms
-import random
-
+from collections import defaultdict
 
 def calculate_class_weights(dataset):
     print("⚖️ Sınıf ağırlıkları hesaplanıyor...")
@@ -28,7 +28,7 @@ def calculate_class_weights(dataset):
 class PISCDataset(Dataset):
     def __init__(self, data_root, split='train', transform=None):
         self.data_root = data_root
-        # Fiziksel klasör ismin 'images' ise burayı 'images' yapmalısın
+        # Klasör ismin 'image' olduğu için burayı s'siz bıraktık
         self.image_dir = os.path.join(data_root, 'image')
 
         split_file = os.path.join(data_root, 'relationship_split', f'relation_{split}idx.json')
@@ -45,25 +45,47 @@ class PISCDataset(Dataset):
         info_dict = {str(item['id']): item for item in info_list}
         self.label_names = ["Friends", "Family", "Couple", "Professional", "Commercial", "No Relation"]
 
-        self.pairs = []
+        # Tüm veriyi önce topla
+        all_pairs = []
         for img_id in active_ids:
             img_id_str = str(img_id)
             if img_id_str in rel_data and img_id_str in info_dict:
                 img_pairs = rel_data[img_id_str]
                 for pair_key, label_idx in img_pairs.items():
-                    self.pairs.append({
+                    all_pairs.append({
                         'filename': f"{img_id_str}.jpg",
-                        'label': int(label_idx),
-                        'caption': f"Two people in a {self.label_names[min(int(label_idx), 5)]} relationship."
+                        'label': int(label_idx)
                     })
+
+        self.pairs = all_pairs
+
+        # --- SINIF ORANINI KORUYAN ÖRNEKLEME (STRATIFIED SUBSAMPLING) ---
+        if split == 'train':
+            target_total = 10000  # M2 Mac için ideal miktar
+            total_before = len(self.pairs)
+
+            grouped_data = defaultdict(list)
+            for p in self.pairs:
+                label = int(p['label'])
+                grouped_data[label].append(p)
+
+            new_pairs = []
+            print(f"Veri seti oranlar korunarak {target_total} örneğe indiriliyor...")
+
+            for label, items in grouped_data.items():
+                ratio = len(items) / total_before
+                num_to_take = int(target_total * ratio)
+
+                random.seed(42)
+                random.shuffle(items)
+                new_pairs.extend(items[:num_to_take])
+
+            random.shuffle(new_pairs)
+            self.pairs = new_pairs
+        # ---------------------------------------------------------------
 
         self.transform = transform
         print(f"✅ {split.upper()} Yüklendi: {len(self.pairs)} çift bulundu.")
-
-        # Rastgele ama sınıfları koruyan bir seçim (örnek)
-        if split == 'train':
-            random.shuffle(self.pairs)
-            self.pairs = self.pairs[:10000]  # İlk 10.000 örneği al
 
     def __len__(self):
         return len(self.pairs)
@@ -72,37 +94,42 @@ class PISCDataset(Dataset):
         pair_data = self.pairs[idx]
         img_path = os.path.join(self.image_dir, pair_data['filename'])
 
-        # 1. Image Referansını Sağlamlaştır
-        if os.path.exists(img_path):
-            image = Image.open(img_path).convert('RGB')
+        # HATA BURADAYDI: image değişkeninin her durumda tanımlandığından emin oluyoruz
+        try:
+            if os.path.exists(img_path):
+                image = Image.open(img_path).convert('RGB')
+            else:
+                image = Image.new('RGB', (224, 224), color='gray')
+        except Exception:
+            # Okuma hatası olursa (dosya bozuksa vb.) gri resim oluştur
+            image = Image.new('RGB', (224, 224), color='gray')
 
-        # 2. Transformları Uygula
+        # Artık image değişkeni garanti olarak mevcut
         if self.transform:
             image = self.transform(image)
 
-        # 3. ETİKET DÜZELTME VE GÜVENLİK (Kritik Nokta!)
-        # PISC etiketleri 1,2,3,4,5,6 şeklindedir.
-        # PyTorch indeksleme için 0,1,2,3,4,5 bekler.
-        # Bu yüzden '1 çıkartıyoruz'.
+        # Etiket düzeltme (1-6 -> 0-5)
         raw_label = int(pair_data['label'])
         clean_label = max(0, min(raw_label - 1, 5))
 
-        # 4. Trainer ile %100 Uyumlu Dönüş
-        # NOT: trainer.py 'image' (tekil) beklediği için anahtar 'image' olmalı.
+        # PISC label_names'e göre caption oluşturma
+        caption = f"Two people in a {self.label_names[clean_label]} relationship."
+
         return {
             'image': image,
-            'caption': pair_data['caption'],
+            'caption': caption,
             'label': torch.tensor(clean_label, dtype=torch.long)
         }
 
 
 def get_pisc_dataloaders(data_root, batch_size=4, num_workers=0):
-    # EĞİTİM İÇİN VERİ ARTIRIMI (Overfitting'e karşı)
+    # EĞİTİM İÇİN DAHA SERT VERİ ARTIRIMI (Ezberlemeyi önlemek için)
     train_transform = transforms.Compose([
         transforms.Resize((256, 256)),
         transforms.RandomCrop((224, 224)),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.RandomRotation(15),  # Resimleri hafif döndür
+        transforms.ColorJitter(brightness=0.3, contrast=0.3),  # Işıkla oyna
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -113,13 +140,12 @@ def get_pisc_dataloaders(data_root, batch_size=4, num_workers=0):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
+    # Sınırlama (limit) kaldırılarak tüm veri yükleniyor
     train_ds = PISCDataset(data_root, split='train', transform=train_transform)
     val_ds = PISCDataset(data_root, split='val', transform=val_transform)
 
-    # Ağırlıkları sadece eğitim setinden hesapla
     weights = calculate_class_weights(train_ds)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-
-    return train_loader, val_loader, weights
+    return DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers), \
+        DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers), \
+        weights
