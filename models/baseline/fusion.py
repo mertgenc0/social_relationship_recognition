@@ -19,12 +19,16 @@ class AdaptiveFusion(nn.Module):
     From baseline paper Equation (3):
     F_fusion = w ⊙ F_I + (1 - w) ⊙ F_T
     where w = MLP([F_I; F_T])
+
+    - Görüntünün mü yoksa metnin mi o anki örnek için daha önemli olduğuna karar veren bir yapıdır.
     """
 
     def __init__(self, feature_dim=256, hidden_dim=128):
         super(AdaptiveFusion, self).__init__()
 
         print(f"🔧 Initializing Adaptive Fusion Module...")
+
+        ### bir ağırlık belirleme ağıdır. Görüntü ve metni birleştirip giriş olarak alır ve her bir özellik kanalı için 0 ile 1 arasında bir değer (Sigmoid) üretir.
 
         # MLP to learn fusion weights
         self.weight_mlp = nn.Sequential(
@@ -59,17 +63,20 @@ class AdaptiveFusion(nn.Module):
             fused_features: [batch_size, feature_dim]
             weights: [batch_size, feature_dim] - fusion weights (for analysis)
         """
+        ### İki vektörü uç uca ekler. Boyut 256×2=512 olur.
         # Concatenate features
         concat_features = torch.cat([image_features, text_features], dim=-1)
-        # [batch, feature_dim * 2]
 
+        ### Model bu 512 boyuta bakıp "Şu an görüntü mü daha baskın olmalı, metin mi?" sorusuna cevap veren w ağırlıklarını oluşturur.
         # Learn fusion weights via MLP
         weights = self.weight_mlp(concat_features)  # [batch, feature_dim]
 
+        ### Asıl sihir burasıdır. Eğer weight 0.8 ise, sonucun %80'i görüntüden, %20'si metinden gelir
         # Adaptive weighted fusion
         fused = weights * image_features + (1 - weights) * text_features
         # [batch, feature_dim]
 
+        ### Birleştirme bittikten sonra sonucu temizlemek ve daha yüksek seviyeli bir temsil oluşturmak için son bir Lineer katman ve Normalizasyon uygular.
         # Optional transformation
         fused_features = self.fusion_transform(fused)
 
@@ -80,6 +87,13 @@ class SimpleFusion(nn.Module):
     """
     Simple baseline fusion: concatenate and project
     Used for ablation studies
+
+    - karşılaştırma (ablation study) yapmak için yazılmış basit bir yapıdır.
+
+    - Ne yapar? Görüntü ve metni uç uca ekler (concatenate) ve bir Lineer katmanla doğrudan orijinal boyuta geri indirir.
+
+    - Farkı nedir? "Hangisi daha önemli?" diye düşünmez; her iki veriyi de sabit bir matris çarpımıyla karıştırır.
+     Daha hızlıdır ama daha az zekidir.
     """
 
     def __init__(self, feature_dim=256):
@@ -98,7 +112,80 @@ class SimpleFusion(nn.Module):
         fused = self.fusion(concat)
         return fused, None  # No weights for simple fusion
 
+"""
+if __name__ == "__main__":
+    import torch
+    import clip
+    from PIL import Image
 
+    print(" ------KENDİ VERİLERİMLE TEST BAŞLIYOR-----")
+    
+
+    # 1. Cihaz ve Model Hazırlığı
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # CLIP: Resim ve metni vektöre çeviren yardımcı model
+    clip_model, preprocess = clip.load("ViT-B/32", device=device)
+
+    # Senin Adaptive Fusion modelin (CLIP ViT-B/32 çıktı boyutu 512'dir)
+    feature_dim = 512
+    adaptive_fusion = AdaptiveFusion(feature_dim=feature_dim, hidden_dim=256).to(device)
+    adaptive_fusion.eval()
+
+    # 2. KENDİ VERİLERİNİ BURAYA EKLE
+    # ---------------------------------------------------------
+    resim_yolu = "data/dataset/image/00033.jpg"  # Kendi resminin adı
+    metin_icerigi = "Two Cowekres are singing in the restourant"  # Kendi metnin
+    # ---------------------------------------------------------
+
+    try:
+        # Resmi işle ve vektöre çevir
+        image = preprocess(Image.open(resim_yolu)).unsqueeze(0).to(device)
+        # Metni işle ve vektöre çevir
+        text = clip.tokenize([metin_icerigi]).to(device)
+
+        with torch.no_grad():
+            image_features = clip_model.encode_image(image).float()
+            text_features = clip_model.encode_text(text).float()
+
+            # --- ASIL FUSION İŞLEMİ ---
+            fused_adaptive, weights = adaptive_fusion(image_features, text_features)
+            # --------------------------
+
+        print(f"\n-  Girişler Başarıyla Hazırlandı:")
+        print(f"   - Resim: {resim_yolu}")
+        print(f"   - Metin: {metin_icerigi}")
+
+        # Orijinal Analiz Kısmı (Hiçbir şeyi silmeden)
+        print(f"\n-  Analiz Sonuçları:")
+        print(f"   Fused features shape: {fused_adaptive.shape}")
+        print(f"   Fusion weights shape: {weights.shape}")
+
+        img_w_mean = weights.mean().item()
+        txt_w_mean = 1.0 - img_w_mean
+
+        print(f"   Weight statistics:")
+        print(f"     Mean (Image Weight): {img_w_mean:.3f}")
+        print(f"     Min: {weights.min():.3f}, Max: {weights.max():.3f}")
+
+        print("\n-  PRATİK YORUM:")
+        print(f"   Model bu örnekte bilginin %{img_w_mean * 100:.1f} kadarını GÖRSELden,")
+        print(f"   %{txt_w_mean * 100:.1f} kadarını METİNden almayı tercih etti.")
+
+        # Model İstatistikleri (Orijinal kodundaki gibi)
+        adaptive_params = sum(p.numel() for p in adaptive_fusion.parameters())
+        print(f"\n-  Model Statistics:")
+        print(f"   Adaptive Fusion Total parameters: {adaptive_params:,}")
+
+    except FileNotFoundError:
+        print(f"\n-  HATA: '{resim_yolu}' dosyası bulunamadı! Lütfen resim yolunu kontrol et.")
+    except Exception as e:
+        print(f"\n-  Bir hata oluştu: {e}")
+
+   
+    print("---- Test Tamamlandı!---- ")
+    
+
+"""
 # Test code
 if __name__ == "__main__":
     print("=" * 60)

@@ -14,6 +14,8 @@ class CombinedLoss(nn.Module):
         self.num_classes = num_classes
         self.alpha = alpha
 
+        self.lambda_factor = 0.3
+
         # Sınıf ağırlıkları (weight) buraya entegre edildi
         self.ce_loss = nn.CrossEntropyLoss(
             label_smoothing=label_smoothing,
@@ -39,7 +41,8 @@ class CombinedLoss(nn.Module):
         cls_loss = self.classification_loss(outputs['logits'], labels)
         cont_loss = self.contrastive_loss(outputs['similarity_matrix'])
 
-        total_loss = cls_loss + self.alpha * cont_loss
+        total_loss = (self.lambda_factor * cls_loss) + (self.alpha * cont_loss)
+        #total_loss = cls_loss + self.alpha * cont_loss   değiştirdim
 
         loss_dict = {
             'total': total_loss.item(),

@@ -16,6 +16,10 @@ class RelationshipClassifier(nn.Module):
     2. FC layers with dropout
     3. Output logits → [batch, num_classes]
     4. Softmax for probabilities
+
+    - Birleştirilmiş vektör bir Softmax fonksiyonuna sokularak ilişkinin türü (Arkadaş, Aile, Sevgili vb.) tahmin edilir
+
+    - Neden Uygulandı? Modelin elindeki sayısal veriyi, insanların anlayabileceği "Yüzde 90 ihtimalle Sevgili" gibi bir etikete dönüştürmek için.
     """
 
     def __init__(self, feature_dim=256, num_classes=6, hidden_dim=128, dropout=0.3):
@@ -46,7 +50,7 @@ class RelationshipClassifier(nn.Module):
         # Initialize weights
         self._initialize_weights()
 
-        print(f"✅ Classifier initialized")
+        print(f"- Classifier initialized")
         print(f"   Input dimension: {feature_dim}")
         print(f"   Hidden dimension: {hidden_dim}")
         print(f"   Number of classes: {num_classes}")
@@ -133,7 +137,7 @@ if __name__ == "__main__":
     )
     classifier.eval()
 
-    print("\n📊 Testing Simple Classifier...")
+    print("\n-----Testing Simple Classifier-----")
     simple_classifier = SimpleClassifier(feature_dim=256, num_classes=6)
     simple_classifier.eval()
 

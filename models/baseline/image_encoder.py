@@ -274,7 +274,7 @@ if __name__ == "__main__":
 
     # Kendi fotoğraflarının yollarını buraya yaz (Aynı klasördeyse direkt isimlerini yazabilirsin)
     # Örnek: ["arkadaslar.jpg", "aile.jpg", "ofis.jpg", "park.jpg"]
-    my_test_images = ["data/dataset/image/00019.jpg", "data/dataset/image/00283.jpg", "data/dataset/image/00158.jpg", "data/dataset/image/08922.jpg"]
+    my_test_images = ["data/dataset/image/00048.jpg", "data/dataset/image/00263.jpg", "data/dataset/image/00158.jpg", "data/dataset/image/08922.jpg"]
 
     print(f"\n- Seçilen {len(my_test_images)} fotoğraf üzerinde işlem başlatılıyor...")
     visualize_model_focus(my_model, my_test_images)

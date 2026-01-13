@@ -316,11 +316,100 @@ class Trainer:
 
     def train(self, num_epochs):
         """
-        Complete training loop
-
-        Args:
-            num_epochs: Number of epochs to train
+        Complete training loop with Phased Training integration
         """
+        print("\n" + "=" * 70)
+        print(f"🚀 Starting Training for {num_epochs} Epochs")
+        print("=" * 70)
+
+        start_time = time.time()
+
+        for epoch in range(num_epochs):
+            self.current_epoch = epoch
+
+            # --- PHASED TRAINING LOGIC (Makale Bölüm III-E) ---
+            # 5. epoch tamamlanıp 6. epoch'a (index 5) başlarken parametreleri açıyoruz [cite: 283]
+            if epoch == 5:
+                print("\n🔓 [PHASED TRAINING] LLM katmanları ince ayar için açılıyor...")
+                # LLM parametrelerini eğitilebilir hale getir
+                for param in self.model.text_encoder.llm.parameters():
+                    param.requires_grad = True
+
+                # Parametreler değiştiği için optimizer'ı yeni listeyle güncellemek gerekir
+                from training.optimizer import build_optimizer
+                self.optimizer = build_optimizer(self.model, self.config)
+                print("⚙️ Optimizer yeni parametrelerle güncellendi.")
+            # --------------------------------------------------
+
+            # Train for one epoch
+            train_loss, train_metrics = self.train_epoch()
+            self.train_losses.append(train_loss)
+
+            # Validate
+            val_loss, val_metrics = self.validate()
+            self.val_losses.append(val_loss)
+            self.val_maps.append(val_metrics['map'])
+            self.val_accs.append(val_metrics['accuracy'])
+
+            # Update learning rate
+            if self.scheduler is not None:
+                if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    self.scheduler.step(val_metrics['map'])
+                else:
+                    self.scheduler.step()
+
+            # Get current learning rate
+            current_lr = self.optimizer.param_groups[0]['lr']
+
+            # Print epoch summary
+            print("\n" + "=" * 70)
+            print(f"📊 Epoch {epoch + 1}/{num_epochs} Summary")
+            print("=" * 70)
+            print(f"Learning Rate: {current_lr:.6f}")
+            print(f"\nTrain Metrics:")
+            print(f"  Loss: {train_metrics['loss']:.4f}")
+            print(f"  Cls Loss: {train_metrics['cls_loss']:.4f}")
+            print(f"  Cont Loss: {train_metrics['cont_loss']:.4f}")
+            print(f"  Accuracy: {train_metrics['accuracy']:.2f}%")
+            print(f"\nValidation Metrics:")
+            print(f"  Loss: {val_metrics['loss']:.4f}")
+            print(f"  Cls Loss: {val_metrics['cls_loss']:.4f}")
+            print(f"  Cont Loss: {val_metrics['cont_loss']:.4f}")
+            print(f"  Accuracy: {val_metrics['accuracy']:.2f}%")
+            print(f"  mAP: {val_metrics['map']:.2f}%")
+
+            # Print per-class accuracy
+            print(f"\nPer-Class Accuracy:")
+            class_names = ["Friends", "Family", "Couple", "Professional", "Commercial", "No Relation"]
+            for c, acc in val_metrics['per_class_acc'].items():
+                print(f"  {class_names[c]}: {acc:.2f}%")
+
+            # Save checkpoint if best model
+            is_best = val_metrics['map'] > self.best_val_map
+            if is_best:
+                self.best_val_map = val_metrics['map']
+                self.best_val_acc = val_metrics['accuracy']
+                self.save_checkpoint(is_best=True)
+                print(f"\n🎉 New best model! mAP: {self.best_val_map:.2f}%")
+
+            # Save regular checkpoint every N epochs
+            if (epoch + 1) % self.config.get('save_every', 10) == 0:
+                self.save_checkpoint(is_best=False)
+
+            print("=" * 70)
+
+        # Training complete
+        elapsed_time = time.time() - start_time
+        print("\n" + "=" * 70)
+        print("🎉 Training Complete!")
+        print("=" * 70)
+        print(f"Total time: {elapsed_time / 3600:.2f} hours")
+        print(f"Best validation mAP: {self.best_val_map:.2f}%")
+        print(f"Best validation accuracy: {self.best_val_acc:.2f}%")
+        print("=" * 70)
+    """
+    def train(self, num_epochs):
+
         print("\n" + "=" * 70)
         print(f"🚀 Starting Training for {num_epochs} Epochs")
         print("=" * 70)
@@ -396,7 +485,7 @@ class Trainer:
         print(f"Best validation mAP: {self.best_val_map:.2f}%")
         print(f"Best validation accuracy: {self.best_val_acc:.2f}%")
         print("=" * 70)
-
+    """
     def save_checkpoint(self, is_best=False):
         """
         Save model checkpoint

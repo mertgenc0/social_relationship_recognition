@@ -5,11 +5,11 @@ Combines all components: Text Encoder + Image Encoder + Alignment + Fusion + Cla
 
 import torch
 import torch.nn as nn
-from .text_encoder import LLMTextEncoder
 from .image_encoder import ResNetWithAttention
 from .alignment import MultimodalAlignment, ContrastiveLoss
 from .fusion import AdaptiveFusion
 from .classifier import RelationshipClassifier
+from .text_encoder import LLMTextEncoder
 
 
 class BaselineModel(nn.Module):
