@@ -11,11 +11,14 @@ def main():
         'data_root': 'data/dataset',
         'num_classes': 6,
         'hidden_dim': 256,
-        'batch_size': 4,
-        'lr': 5e-5,    #1e-4
-        'num_epochs': 20,
+        'batch_size': 128,
+        'lr': 1e-3,
+        'vocab_size': 1000,
+        'embedding_dim': 128,
+        'max_seq_length': 100,
+        'num_epochs': 10,
         'save_every': 5,
-        'device': 'mps' if torch.backends.mps.is_available() else 'cpu',
+        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
         'checkpoint_dir': 'checkpoints/baseline',
         'log_dir': 'logs/baseline'
     }

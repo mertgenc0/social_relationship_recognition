@@ -41,8 +41,9 @@ class CombinedLoss(nn.Module):
         cls_loss = self.classification_loss(outputs['logits'], labels)
         cont_loss = self.contrastive_loss(outputs['similarity_matrix'])
 
-        total_loss = (self.lambda_factor * cls_loss) + (self.alpha * cont_loss)
-        #total_loss = cls_loss + self.alpha * cont_loss   değiştirdim
+        # MAKALEYE SADIK DÜZELTME: Modality Balance Factor (lambda = 0.3)
+        # Bu faktör, görsel ve metinsel modlar arasındaki gradyan dengesini sağlar.
+        total_loss = (0.3 * cls_loss) + (self.alpha * cont_loss)
 
         loss_dict = {
             'total': total_loss.item(),

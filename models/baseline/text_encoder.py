@@ -21,6 +21,14 @@ class LLMTextEncoder(nn.Module):
     def __init__(self, model_name='bert-base-uncased', hidden_dim=256):
         super(LLMTextEncoder, self).__init__()
 
+        self.vocab_size = 1000
+        self.embedding_dim = 128
+        # ... (BERT tanımlamaları)
+
+        # BERT çıktısını (768) makaledeki embedding_dim (128) seviyesine
+        # indiren bir ara katman eklemek makaleye sadakati artırır.
+        self.proj = nn.Linear(768, 128)
+
         print(f"Initializing Text Encoder with {model_name}.")
 
         # LLM (BERT)
@@ -63,7 +71,7 @@ class LLMTextEncoder(nn.Module):
             captions,
             padding=True,
             truncation=True,
-            max_length=77,  # Standard for CLIP-like models
+            max_length=100,  # Standard for CLIP-like models
             return_tensors='pt'
         ).to(device)
 
