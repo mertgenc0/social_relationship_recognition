@@ -133,7 +133,7 @@ class PISCPreprocessor:
         print("=" * 80)
         print("\n📌 Next steps:")
         print("   1. Run: python scripts/organize_images.py")
-        print("   2. Test with: python data/pisc_dataset_loader.py")
+        print("   2. Test with: python data/pisc_dataset_loader_old.py")
 
         return True
 

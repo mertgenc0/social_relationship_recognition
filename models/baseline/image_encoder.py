@@ -13,6 +13,7 @@ insan etkileşimlerine odaklanmak için
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import torch.nn.functional as F
 
 class ChannelAttention(nn.Module):
     """
@@ -198,6 +199,78 @@ class ResNetWithAttention(nn.Module):
     def get_output_dim(self):
         """Return output feature dimension"""
         return self.fc.out_features
+
+
+### Innovation1: Multi-Scale Visual Feature Pyramid
+class FPNImageEncoder(nn.Module):
+    """
+    İnovasyon 1: Multi-Scale Visual Feature Pyramid (FPN)
+    Amaç: Tek ölçekli özellikler yerine, hiyerarşik (çok ölçekli) özellikler kullanarak
+    hem sahne bağlamını hem de ince detayları (yüz ifadesi vb.) yakalamak[cite: 641, 765].
+    """
+
+    def __init__(self, hidden_dim=256, use_fpn=True):
+        super(FPNImageEncoder, self).__init__()
+        self.use_fpn = use_fpn
+
+        # ResNet-50 omurgası yüklenir [cite: 765, 768]
+        resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+
+        # ResNet-50 katmanları hiyerarşik olarak ayrılır [cite: 769-778]
+        # Layer 1: Yüz ifadeleri ve mikro detaylar (Yüksek çözünürlük) [cite: 699]
+        self.layer1 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool, resnet.layer1)
+        # Layer 2: Vücut dili ve jestler [cite: 699]
+        self.layer2 = resnet.layer2
+        # Layer 3: İnsanlar arası etkileşim ve yakınlık [cite: 699]
+        self.layer3 = resnet.layer3
+        # Layer 4: Genel sahne bağlamı (Baseline sadece bunu kullanır) [cite: 693, 699]
+        self.layer4 = resnet.layer4
+
+        if self.use_fpn:
+            # Lateral (Yanal) Bağlantılar [cite: 782-785]:
+            # Farklı kanal sayılarını (256, 512, 1024, 2048) standart 256 kanala indirger.
+            self.lat_c4 = nn.Conv2d(2048, 256, 1)
+            self.lat_c3 = nn.Conv2d(1024, 256, 1)
+            self.lat_c2 = nn.Conv2d(512, 256, 1)
+            self.lat_c1 = nn.Conv2d(256, 256, 1)
+
+            # Püf Nokta: Makale her piramit seviyesi için ayrı attention önerir[cite: 791].
+            # Karmaşıklığı önlemek için burada ortak bir pooler kullanılabilir.
+
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(256 if use_fpn else 2048, hidden_dim)
+
+    def forward(self, x):
+        # 1. Adım: Hiyerarşik Özellik Çıkarımı [cite: 768]
+        c1 = self.layer1(x)  # C1: [256, 56, 56]
+        c2 = self.layer2(c1)  # C2: [512, 28, 28]
+        c3 = self.layer3(c2)  # C3: [1024, 14, 14]
+        c4 = self.layer4(c3)  # C4: [2048, 7, 7]
+
+        if not self.use_fpn:
+            # Baseline Modu: Sadece Layer 4 kullanılır[cite: 693].
+            return self.fc(self.global_pool(c4).view(c4.size(0), -1))
+
+        # 2. Adım: Top-Down Pathway (Yukarıdan Aşağıya Yol) [cite: 780-785]
+        # P4 en üst seviyedir (en yüksek semantik)
+        p4 = self.lat_c4(c4)
+
+        # P3: P4'ü büyüt (Upsample) ve C3 ile topla[cite: 783].
+        # 'F.interpolate' burada çözünürlüğü eşitlemek için kullanılır.
+        p3 = F.interpolate(p4, scale_factor=2, mode='nearest') + self.lat_c3(c3)
+
+        # P2: P3'ü büyüt ve C2 ile topla[cite: 784].
+        p2 = F.interpolate(p3, scale_factor=2, mode='nearest') + self.lat_c2(c2)
+
+        # P1: P2'yi büyüt ve C1 ile topla (En detaylı seviye)[cite: 785].
+        p1 = F.interpolate(p2, scale_factor=2, mode='nearest') + self.lat_c1(c1)
+
+        # 3. Adım: Özellik Birleştirme
+        # Makaleye göre tüm seviyeler bilgi taşır, ancak P1 en ince detaylara (yüzler) sahiptir.
+        # Global pooling ile 256 boyutlu bir vektöre indirgenir.
+        out = self.global_pool(p1).view(p1.size(0), -1)
+        return self.fc(out)
+
 
 
 import matplotlib.pyplot as plt

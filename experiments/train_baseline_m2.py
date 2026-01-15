@@ -12,7 +12,7 @@ import torch.nn as nn
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from models.baseline.baseline_model import BaselineModel
-from data.pisc_dataset_loader import get_pisc_dataloaders
+from data.pisc_dataset_loader_old import get_pisc_dataloaders
 from training.losses import CombinedLoss
 from training.optimizer import build_optimizer, build_scheduler
 from training.trainer import Trainer
