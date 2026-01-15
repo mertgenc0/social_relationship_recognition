@@ -141,38 +141,6 @@ class ContrastiveLoss(nn.Module):
 
         return loss
 
-### Innovation 2: Iterative Cross-Modal Refinement
-class IterativeAlignment(nn.Module):
-    def __init__(self, feature_dim=256, K=3):
-        super(IterativeAlignment, self).__init__()
-        self.K = K  # İterasyon sayısı [cite: 812]
-        self.feature_dim = feature_dim
-
-        # Cross-Attention katmanları [cite: 814]
-        self.text_to_vis = nn.ModuleList([nn.MultiheadAttention(feature_dim, 8) for _ in range(K)])
-        self.vis_to_text = nn.ModuleList([nn.MultiheadAttention(feature_dim, 8) for _ in range(K)])
-
-        self.ln_v = nn.ModuleList([nn.LayerNorm(feature_dim) for _ in range(K)])
-        self.ln_t = nn.ModuleList([nn.LayerNorm(feature_dim) for _ in range(K)])
-
-    def forward(self, image_feat, text_feat):
-        # image_feat: [batch, 256], text_feat: [batch, 256]
-        v = image_feat.unsqueeze(0)  # [1, batch, 256]
-        t = text_feat.unsqueeze(0)  # [1, batch, 256]
-
-        for k in range(self.K):
-            # 1. Metin görüntüye odaklanır (Text attends to Visual) [cite: 812]
-            t_att, _ = self.text_to_vis[k](query=t, key=v, value=v)
-            t = self.ln_t[k](t + t_att)  # Residual connection [cite: 823]
-
-            # 2. Görüntü metne odaklanır (Visual attends to Text) [cite: 812]
-            v_att, _ = self.vis_to_text[k](query=v, key=t, value=t)
-            v = self.ln_v[k](v + v_att)
-
-        return v.squeeze(0), t.squeeze(0)
-
-
-
 # Test Kodu
 if __name__ == "__main__":
     print("-----Çok Modlu Hizalama Modülü Test Ediliyor-----")

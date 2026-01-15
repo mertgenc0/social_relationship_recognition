@@ -112,41 +112,6 @@ class SimpleFusion(nn.Module):
         fused = self.fusion(concat)
         return fused, None  # No weights for simple fusion
 
-
-# models/baseline/fusion.py içine eklenecek kısım
-
-class UncertaintyFusion(nn.Module):
-    def __init__(self, feature_dim=256):
-        super(UncertaintyFusion, self).__init__()
-        # Belirsizlik kestirimi (Uncertainty Estimation) MLPları [cite: 842-843]
-        self.mlp_v = nn.Sequential(nn.Linear(feature_dim, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid())
-        self.mlp_t = nn.Sequential(nn.Linear(feature_dim, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid())
-
-        # Gated non-linear fusion [cite: 858]
-        self.gate_mlp = nn.Sequential(nn.Linear(feature_dim * 2, feature_dim), nn.Sigmoid())
-
-    def forward(self, v, t):
-        # Belirsizlikleri hesapla (0-1 arası) [cite: 842-843]
-        sigma_v = self.mlp_v(v)
-        sigma_t = self.mlp_t(t)
-
-        # Precision ağırlıkları (Belirsizliğin tersi) [cite: 848-851]
-        w_v = 1.0 / (sigma_v + 1e-6)
-        w_t = 1.0 / (sigma_t + 1e-6)
-
-        # Ağırlıkları normalize et [cite: 851]
-        norm_w_v = w_v / (w_v + w_t)
-        norm_w_t = w_t / (w_v + w_t)
-
-        # Temel ağırlıklı füzyon [cite: 855]
-        f_basic = norm_w_v * v + norm_w_t * t
-
-        # Karmaşık etkileşimler için kapılama (Gating) [cite: 859]
-        gate = self.gate_mlp(torch.cat([v, t], dim=-1))
-        f_fusion = gate * f_basic + (1 - gate) * v  # Resnet'e geri dönüş opsiyonu [cite: 860]
-
-        return f_fusion, (sigma_v, sigma_t)
-
 """
 if __name__ == "__main__":
     import torch

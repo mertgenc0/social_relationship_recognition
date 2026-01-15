@@ -108,7 +108,7 @@ def organize_images(raw_images_dir='data/raw/image',
         print("\n✅ Image organization completed!")
         print("\n📌 Next step:")
         print("   Test the dataset loader:")
-        print("   python data/pisc_dataset_loader_old.py")
+        print("   python data/pisc_dataset_loader.py")
 
     return True
 
