@@ -112,6 +112,27 @@ class SimpleFusion(nn.Module):
         fused = self.fusion(concat)
         return fused, None  # No weights for simple fusion
 
+
+class UncertaintyFusion(nn.Module):
+    def __init__(self, feature_dim=256):
+        super(UncertaintyFusion, self).__init__()
+        # Belirsizlik kestirimi (Sigma) [cite: 243-246]
+        self.mlp_v = nn.Sequential(nn.Linear(feature_dim, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid())
+        self.mlp_t = nn.Sequential(nn.Linear(feature_dim, 64), nn.ReLU(), nn.Linear(64, 1), nn.Sigmoid())
+        # Gated füzyon [cite: 259-261]
+        self.gate_mlp = nn.Sequential(nn.Linear(feature_dim * 2, feature_dim), nn.Sigmoid())
+
+    def forward(self, v, t):
+        sig_v, sig_t = self.mlp_v(v), self.mlp_t(t)
+        # Hassasiyet ağırlıkları (1/sigma) [cite: 250-254]
+        w_v, w_t = 1.0 / (sig_v + 1e-6), 1.0 / (sig_t + 1e-6)
+        n_v, n_t = w_v / (w_v + w_t), w_t / (w_v + w_t)
+
+        f_basic = n_v * v + n_t * t  # [cite: 256-257]
+        gate = self.gate_mlp(torch.cat([v, t], dim=-1))
+        f_fusion = gate * f_basic + (1 - gate) * v  # [cite: 262]
+        return f_fusion, (sig_v, sig_t)
+
 """
 if __name__ == "__main__":
     import torch

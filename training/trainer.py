@@ -108,7 +108,7 @@ class Trainer:
             outputs = self.model(images, captions, return_features=False)
 
             # Compute loss
-            loss, loss_dict = self.criterion(outputs, labels)
+            loss, loss_dict = self.model.compute_loss(outputs, labels)
 
             # Backward pass
             self.optimizer.zero_grad()
@@ -185,7 +185,7 @@ class Trainer:
                 outputs = self.model(images, captions, return_features=False)
 
                 # Compute loss
-                loss, loss_dict = self.criterion(outputs, labels)
+                loss, loss_dict = self.model.compute_loss(outputs, labels)
 
                 # Update metrics
                 epoch_loss += loss_dict['total']
@@ -327,19 +327,24 @@ class Trainer:
         for epoch in range(num_epochs):
             self.current_epoch = epoch
 
-            # --- PHASED TRAINING LOGIC (Makale Bölüm III-E) ---
-            # 5. epoch tamamlanıp 6. epoch'a (index 5) başlarken parametreleri açıyoruz [cite: 283]
             if epoch == 5:
-                print("\n🔓 [PHASED TRAINING] LLM katmanları ince ayar için açılıyor...")
-                # LLM parametrelerini eğitilebilir hale getir
+                print("\n🔓 [PHASED TRAINING] LLM katmanları açılıyor ve LR rafine ediliyor...")
+                # 1. BERT parametrelerini eğitime aç
                 for param in self.model.text_encoder.llm.parameters():
                     param.requires_grad = True
 
-                # Parametreler değiştiği için optimizer'ı yeni listeyle güncellemek gerekir
-                from training.optimizer import build_optimizer
-                self.optimizer = build_optimizer(self.model, self.config)
-                print("⚙️ Optimizer yeni parametrelerle güncellendi.")
-            # --------------------------------------------------
+                # 2. Optimizer'ı tamamen sıfırlamak yerine mevcut olanı güncelle
+                # Yeni açılan LLM parametrelerini mevcut optimizer'a ekle
+                self.optimizer.add_param_group({
+                    'params': self.model.text_encoder.llm.parameters(),
+                    'lr': self.config.get('lr', 1e-3) * 0.1  # LLM için 10 kat daha düşük LR
+                })
+
+                # 3. Mevcut tüm parametrelerin LR'sini düşür (Daha kararlı bir fine-tune için)
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] = param_group['lr'] * 0.5  # Mevcut hızı yarıya indir
+
+                print("⚙️ Optimizer Phased Training için optimize edildi.")
 
             # Train for one epoch
             train_loss, train_metrics = self.train_epoch()

@@ -13,6 +13,7 @@ insan etkileşimlerine odaklanmak için
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import torch.nn.functional as F
 
 class ChannelAttention(nn.Module):
     """
@@ -198,6 +199,40 @@ class ResNetWithAttention(nn.Module):
     def get_output_dim(self):
         """Return output feature dimension"""
         return self.fc.out_features
+
+
+class FPNImageEncoder(nn.Module):
+    def __init__(self, hidden_dim=256):
+        super(FPNImageEncoder, self).__init__()
+        resnet = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        # ResNet-50 katmanlarını ayır [cite: 148-158]
+        self.layer1 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu, resnet.maxpool, resnet.layer1)
+        self.layer2 = resnet.layer2
+        self.layer3 = resnet.layer3
+        self.layer4 = resnet.layer4
+
+        # Lateral (yanal) bağlantılar [cite: 162-165]
+        self.lat_c4 = nn.Conv2d(2048, 256, 1)
+        self.lat_c3 = nn.Conv2d(1024, 256, 1)
+        self.lat_c2 = nn.Conv2d(512, 256, 1)
+        self.lat_c1 = nn.Conv2d(256, 256, 1)
+
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Linear(256, hidden_dim)
+
+    def forward(self, x):
+        c1 = self.layer1(x)  # [256, 56, 56] [cite: 150]
+        c2 = self.layer2(c1)  # [512, 28, 28] [cite: 152]
+        c3 = self.layer3(c2)  # [1024, 14, 14] [cite: 156]
+        c4 = self.layer4(c3)  # [2048, 7, 7] [cite: 158]
+
+        # FPN Top-Down akışı [cite: 160-165]
+        p4 = self.lat_c4(c4)
+        p3 = F.interpolate(p4, scale_factor=2) + self.lat_c3(c3)
+        p2 = F.interpolate(p3, scale_factor=2) + self.lat_c2(c2)
+        p1 = F.interpolate(p2, scale_factor=2) + self.lat_c1(c1)
+
+        return self.fc(self.global_pool(p1).view(p1.size(0), -1))
 
 
 import matplotlib.pyplot as plt

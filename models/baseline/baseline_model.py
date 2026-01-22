@@ -5,75 +5,61 @@ Combines all components: Text Encoder + Image Encoder + Alignment + Fusion + Cla
 
 import torch
 import torch.nn as nn
-from .image_encoder import ResNetWithAttention
-from .alignment import MultimodalAlignment, ContrastiveLoss
-from .fusion import AdaptiveFusion
+from .image_encoder import ResNetWithAttention, FPNImageEncoder
+from .alignment import MultimodalAlignment, ContrastiveLoss, IterativeAlignment
+from .fusion import AdaptiveFusion, UncertaintyFusion
 from .classifier import RelationshipClassifier
 from .text_encoder import LLMTextEncoder
 
-
 class BaselineModel(nn.Module):
-    """
-    Complete Baseline Model
-
-    Architecture Pipeline:
-    1. Text Encoder: LLM (BERT) + CNN → text_features [batch, 256]
-    2. Image Encoder: ResNet-50 + Attention → image_features [batch, 256]
-    3. Alignment: Cosine similarity alignment → aligned_image, aligned_text
-    4. Fusion: Adaptive weighted fusion → fused_features [batch, 256]
-    5. Classifier: Multi-layer MLP → predictions [batch, num_classes]
-
-    From baseline paper: "Multimodal Social Relationship Recognition" (AAAI 2022)
-    """
-
     def __init__(
             self,
             num_classes=6,
+            use_enhanced=False, # İnovasyonları açıp kapatan anahtar
             hidden_dim=256,
             text_model_name='bert-base-uncased',
             pretrained_resnet=True,
             alignment_temperature=0.07,
             fusion_hidden_dim=128,
             classifier_hidden_dim=128,
-            classifier_dropout=0.3
+            classifier_dropout=0.3,
+            class_weights=None
     ):
         super(BaselineModel, self).__init__()
 
-        print("=" * 70)
-        print("🚀 Initializing Complete Baseline Model")
-        print("=" * 70)
-
         self.num_classes = num_classes
         self.hidden_dim = hidden_dim
+        self.use_enhanced = use_enhanced
+        if class_weights is not None:
+            self.register_buffer('weights', class_weights)
+        else:
+            self.weights = None
 
-        # 1. Text Encoder
-        print("\n[1/5] Initializing Text Encoder...")
-        self.text_encoder = LLMTextEncoder(
-            model_name=text_model_name,
-            hidden_dim=hidden_dim
-        )
 
-        # 2. Image Encoder
-        print("\n[2/5] Initializing Image Encoder...")
-        self.image_encoder = ResNetWithAttention(
-            hidden_dim=hidden_dim,
-            pretrained=pretrained_resnet
-        )
+        print("=" * 70)
+        mode_name = "ENHANCED (Innovation Mode)" if use_enhanced else "BASELINE Mode"
+        print(f"🚀 Initializing Model in {mode_name}")
+        print("=" * 70)
 
-        # 3. Multimodal Alignment
-        print("\n[3/5] Initializing Multimodal Alignment...")
+        # 1. Text Encoder (Baseline)
+        self.text_encoder = LLMTextEncoder(model_name=text_model_name, hidden_dim=hidden_dim)
+
+        # 2. Image Encoder (Baseline + Innovation 1)
+        self.image_encoder = ResNetWithAttention(hidden_dim=hidden_dim, pretrained=pretrained_resnet)
+        if self.use_enhanced:
+            self.fpn_enhancer = FPNImageEncoder(hidden_dim=hidden_dim)
+
+        # 3. Alignment (Baseline + Innovation 2)
         self.alignment = MultimodalAlignment(temperature=alignment_temperature)
-        print(f"✅ Multimodal Alignment initialized")
+        if self.use_enhanced:
+            self.iterative_refiner = IterativeAlignment(feature_dim=hidden_dim, K=3)
 
-        # 4. Fusion Module
-        print("\n[4/5] Initializing Fusion Module...")
-        self.fusion = AdaptiveFusion(
-            feature_dim=hidden_dim,
-            hidden_dim=fusion_hidden_dim
-        )
+        # 4. Fusion (Baseline + Innovation 3)
+        self.fusion = AdaptiveFusion(feature_dim=hidden_dim, hidden_dim=fusion_hidden_dim)
+        if self.use_enhanced:
+            self.uncertainty_fusion = UncertaintyFusion(feature_dim=hidden_dim)
 
         # 5. Classifier
-        print("\n[5/5] Initializing Classifier...")
         self.classifier = RelationshipClassifier(
             feature_dim=hidden_dim,
             num_classes=num_classes,
@@ -81,146 +67,112 @@ class BaselineModel(nn.Module):
             dropout=classifier_dropout
         )
 
-        # Contrastive loss for alignment
         self.contrastive_loss = ContrastiveLoss()
-
-        print("\n" + "=" * 70)
-        print("✅ Complete Baseline Model Initialized Successfully!")
-        print("=" * 70)
-
         self._print_model_summary()
 
     def forward(self, images, captions, return_features=False):
-        """
-        Forward pass through the complete model
+        # 1. Baseline Özellik Çıkarımı
+        text_features = self.text_encoder(captions)
+        image_features = self.image_encoder(images)
 
-        Args:
-            images: [batch_size, 3, 224, 224] - input image
-            captions: List[str] - text captions (batch_size items)
-            return_features: bool - whether to return intermediate features
+        # İnovasyon 1: FPN Enhancer (Eğer aktifse baseline üzerine biner)
+        if self.use_enhanced:
+            image_features = self.fpn_enhancer(images)
 
-        Returns:
-            outputs: dict containing:
-                - logits: [batch_size, num_classes]
-                - probs: [batch_size, num_classes]
-                - predictions: [batch_size]
-                - similarity_matrix: [batch_size, batch_size] (for contrastive loss)
-                - (optional) intermediate features if return_features=True
-        """
-        batch_size = images.size(0)
+        # 2. Alignment (Baseline hizalama yapılır)
+        aligned_image, aligned_text, similarity_matrix = self.alignment(image_features, text_features)
 
-        # 1. Encode text
-        text_features = self.text_encoder(captions)  # [batch, 256]
+        # İnovasyon 2: Iterative Refinement
+        if self.use_enhanced:
+            aligned_image, aligned_text = self.iterative_refiner(aligned_image, aligned_text)
+            similarity_matrix = torch.matmul(aligned_image, aligned_text.t())
 
-        # 2. Encode image
-        image_features = self.image_encoder(images)  # [batch, 256]
-
-        # 3. Multimodal alignment
-        aligned_image, aligned_text, similarity_matrix = self.alignment(
-            image_features, text_features
-        )
-
-        # 4. Fusion
+        # 3. Fusion
         fused_features, fusion_weights = self.fusion(aligned_image, aligned_text)
 
-        # 5. Classification
+        # İnovasyon 3: Uncertainty-Aware Fusion
+        uncertainty = None
+        if self.use_enhanced:
+            fused_features, uncertainty = self.uncertainty_fusion(aligned_image, aligned_text)
+
+        # 4. Classification
         logits, probs, predictions = self.classifier(fused_features)
 
-        # Prepare outputs
         outputs = {
             'logits': logits,
             'probs': probs,
             'predictions': predictions,
             'similarity_matrix': similarity_matrix,
+            'uncertainty': uncertainty
         }
 
-        # Return intermediate features if requested (for analysis/visualization)
         if return_features:
             outputs.update({
                 'text_features': text_features,
                 'image_features': image_features,
                 'aligned_image': aligned_image,
                 'aligned_text': aligned_text,
-                'fused_features': fused_features,
-                'fusion_weights': fusion_weights,
+                'fused_features': fused_features
             })
 
         return outputs
 
     def compute_loss(self, outputs, labels, alpha=0.1):
         """
-        Compute total loss = Classification Loss + Contrastive Loss
-
-        Args:
-            outputs: dict from forward()
-            labels: [batch_size] - ground truth labels
-            alpha: weight for contrastive loss (default: 0.1)
-
-        Returns:
-            total_loss: scalar
-            loss_dict: dict with individual losses for logging
+        Makaleye (Wang ve ark.) %100 sadık kayıp fonksiyonu.
+        L_total = 0.3 * L_CE(weighted) + alpha * L_cont
         """
-        # Classification loss (Cross Entropy)
+        # Sınıflandırma Kaybı (Ağırlıklı Cross Entropy)
+        # Sınıf ağırlıkları burada devreye girerek Professional baskınlığını kırar.
         classification_loss = nn.functional.cross_entropy(
-            outputs['logits'], labels
+            outputs['logits'],
+            labels,
+            weight=self.weights
         )
 
-        # Contrastive loss (for alignment)
+        # Hizalama Kaybı (Contrastive Loss)
         contrastive_loss = self.contrastive_loss(outputs['similarity_matrix'])
 
-        # Total loss
-        total_loss = classification_loss + alpha * contrastive_loss
+        # Makaledeki Modality Balance Factor (0.3) katsayısı
+        total_loss = (0.3 * classification_loss) + (alpha * contrastive_loss)
 
-        # Return individual losses for logging
         loss_dict = {
-            'total_loss': total_loss.item(),
-            'classification_loss': classification_loss.item(),
-            'contrastive_loss': contrastive_loss.item(),
+            'total': total_loss.item(),
+            'classification': classification_loss.item(),
+            'contrastive': contrastive_loss.item()
         }
+
+        # İnovasyon 3: Belirsizlik Düzenlemesi (Enhanced Mod Açıksa)
+        if self.use_enhanced and outputs.get('uncertainty') is not None:
+            sig_v, sig_t = outputs['uncertainty']
+            unc_loss = torch.mean(torch.abs(sig_v - 0.5) + torch.abs(sig_t - 0.5))
+            total_loss += 0.05 * unc_loss
+            loss_dict['total'] = total_loss.item()
+            loss_dict['uncertainty_loss'] = unc_loss.item()
 
         return total_loss, loss_dict
 
-    def _print_model_summary(self):
-        """Print model architecture summary"""
-        total_params = sum(p.numel() for p in self.parameters())
-        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-
-        print("\n📊 Model Architecture Summary:")
-        print("-" * 70)
-
-        # Component-wise parameter counts
-        text_params = sum(p.numel() for p in self.text_encoder.parameters())
-        text_trainable = sum(p.numel() for p in self.text_encoder.parameters() if p.requires_grad)
-
-        image_params = sum(p.numel() for p in self.image_encoder.parameters())
-        image_trainable = sum(p.numel() for p in self.image_encoder.parameters() if p.requires_grad)
-
-        fusion_params = sum(p.numel() for p in self.fusion.parameters())
-        classifier_params = sum(p.numel() for p in self.classifier.parameters())
-
-        print(f"Text Encoder:        {text_params:>12,} params ({text_trainable:>12,} trainable)")
-        print(f"Image Encoder:       {image_params:>12,} params ({image_trainable:>12,} trainable)")
-        print(f"Alignment Module:    {0:>12,} params (no learnable params)")
-        print(f"Fusion Module:       {fusion_params:>12,} params")
-        print(f"Classifier:          {classifier_params:>12,} params")
-        print("-" * 70)
-        print(f"Total Parameters:    {total_params:>12,}")
-        print(f"Trainable Parameters:{trainable_params:>12,}")
-        print(f"Frozen Parameters:   {total_params - trainable_params:>12,}")
-        print("-" * 70)
-
-        # Memory estimate (rough)
-        memory_mb = (total_params * 4) / (1024 ** 2)  # 4 bytes per float32
-        print(f"Estimated Memory:    ~{memory_mb:.1f} MB")
-        print()
-
     def get_config(self):
-        """Return model configuration for saving"""
+        """Modeli kaydetmek ve konfigürasyonu takip etmek için"""
         return {
             'num_classes': self.num_classes,
             'hidden_dim': self.hidden_dim,
-            'text_model_name': self.text_encoder.tokenizer.name_or_path,
+            'use_enhanced': self.use_enhanced,
+            'text_model_name': self.text_encoder.tokenizer.name_or_path if hasattr(self.text_encoder, 'tokenizer') else 'bert-base-uncased'
         }
+
+    def _print_model_summary(self):
+        """Modelin parametre sayısını ve modül özetini yazdırır"""
+        total_params = sum(p.numel() for p in self.parameters())
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+        print("\n📊 Model Mimarisi Özeti:")
+        print("-" * 50)
+        print(f"Mod: {'GELİŞMİŞ (İnovasyonlar Aktif)' if self.use_enhanced else 'BASELINE (Sadece Temel Yapı)'}")
+        print(f"Toplam Parametre: {total_params:,}")
+        print(f"Eğitilebilir Parametre: {trainable_params:,}")
+        print(f"Dondurulmuş Parametre: {total_params - trainable_params:,}")
+        print("-" * 50)
 
 
 # Test code

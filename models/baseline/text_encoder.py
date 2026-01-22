@@ -38,8 +38,10 @@ class LLMTextEncoder(nn.Module):
         self.llm = AutoModel.from_pretrained(model_name)
 
         # modelinin ağırlıklarını sabitler eğitilmesini engeller.Bellek tasarrufu sağlar ve sadece cnn katmanalrı öğrenemsini sağlar
+        """
         for param in self.llm.parameters():
             param.requires_grad = False
+        """
 
         llm_dim = self.llm.config.hidden_size  # 768 for BERT-base
 

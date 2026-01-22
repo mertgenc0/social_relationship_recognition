@@ -140,6 +140,25 @@ class ContrastiveLoss(nn.Module):
         loss = (loss_i2t + loss_t2i) / 2
 
         return loss
+class IterativeAlignment(nn.Module):
+    def __init__(self, feature_dim=256, K=3):
+        super(IterativeAlignment, self).__init__()
+        self.K = K # Varsayılan 3 iterasyon [cite: 194, 226]
+        self.text_to_vis = nn.ModuleList([nn.MultiheadAttention(feature_dim, 8) for _ in range(K)])
+        self.vis_to_text = nn.ModuleList([nn.MultiheadAttention(feature_dim, 8) for _ in range(K)])
+        self.ln_v = nn.ModuleList([nn.LayerNorm(feature_dim) for _ in range(K)])
+        self.ln_t = nn.ModuleList([nn.LayerNorm(feature_dim) for _ in range(K)])
+
+    def forward(self, v, t):
+        v, t = v.unsqueeze(0), t.unsqueeze(0) # [1, B, D]
+        for k in range(self.K):
+            # Text attends to Visual [cite: 197-202]
+            t_att, _ = self.text_to_vis[k](t, v, v)
+            t = self.ln_t[k](t + t_att)
+            # Visual attends to Text [cite: 208-210]
+            v_att, _ = self.vis_to_text[k](v, t, t)
+            v = self.ln_v[k](v + v_att)
+        return v.squeeze(0), t.squeeze(0)
 
 # Test Kodu
 if __name__ == "__main__":

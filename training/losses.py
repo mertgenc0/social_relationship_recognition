@@ -41,13 +41,12 @@ class CombinedLoss(nn.Module):
         cls_loss = self.classification_loss(outputs['logits'], labels)
         cont_loss = self.contrastive_loss(outputs['similarity_matrix'])
 
-        # MAKALEYE SADIK DÜZELTME: Modality Balance Factor (lambda = 0.3)
-        # Bu faktör, görsel ve metinsel modlar arasındaki gradyan dengesini sağlar.
+        # Makale: Modality Balance Factor 0.3
         total_loss = (0.3 * cls_loss) + (self.alpha * cont_loss)
 
-        loss_dict = {
-            'total': total_loss.item(),
-            'classification': cls_loss.item(),
-            'contrastive': cont_loss.item(),
-        }
-        return total_loss, loss_dict
+        # Eğer Enhanced modundaysak belirsizlik kaybını ekle [cite: 291, 300]
+        if outputs.get('uncertainty') is not None:
+            sig_v, sig_t = outputs['uncertainty']
+            total_loss += 0.05 * torch.mean(torch.abs(sig_v - 0.5) + torch.abs(sig_t - 0.5))
+
+        return total_loss, {'total': total_loss.item(), 'classification': cls_loss.item()}

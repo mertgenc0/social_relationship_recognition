@@ -59,31 +59,9 @@ class PISCDataset(Dataset):
 
         self.pairs = all_pairs
 
-        # --- SINIF ORANINI KORUYAN ÖRNEKLEME (STRATIFIED SUBSAMPLING) ---
-        if split == 'train':
-            target_total = 10000  # M2 Mac için ideal miktar
-            total_before = len(self.pairs)
 
-            grouped_data = defaultdict(list)
-            for p in self.pairs:
-                label = int(p['label'])
-                grouped_data[label].append(p)
-
-            new_pairs = []
-            print(f"Veri seti oranlar korunarak {target_total} örneğe indiriliyor...")
-
-            for label, items in grouped_data.items():
-                ratio = len(items) / total_before
-                num_to_take = int(target_total * ratio)
-
-                random.seed(42)
-                random.shuffle(items)
-                new_pairs.extend(items[:num_to_take])
-
-            random.shuffle(new_pairs)
-            self.pairs = new_pairs
-        # ---------------------------------------------------------------
-
+        random.seed(42)
+        random.shuffle(self.pairs)
         self.transform = transform
         print(f"✅ {split.upper()} Yüklendi: {len(self.pairs)} çift bulundu.")
 

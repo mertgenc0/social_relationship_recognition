@@ -9,6 +9,7 @@ from training.trainer import Trainer
 def main():
     config = {
         'data_root': 'data/dataset',
+        'use_enhanced': True,
         'num_classes': 6,
         'hidden_dim': 256,
         'batch_size': 128,
@@ -38,6 +39,7 @@ def main():
     model = BaselineModel(
         num_classes=config['num_classes'],
         hidden_dim=config['hidden_dim'],
+        use_enhanced=config['use_enhanced'],
         pretrained_resnet=True
     ).to(config['device'])
 
